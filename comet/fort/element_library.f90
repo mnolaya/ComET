@@ -5,7 +5,6 @@ module element_library
 
     implicit none
     private
-    public :: LinearElement_t
 
     type :: ShapeFunction_t
         ! Type containing pointer to a shape function for assembling into an array
@@ -24,9 +23,11 @@ module element_library
         ! Base class for a finite element
         integer :: number
         character(CHAR_SIZE) :: material_name
-        ! type(ShapeFunction_t), allocatable :: shape_funcs(:)
+        type(ShapeFunction_t), allocatable :: shape_funcs(:)
         type(Node_t), allocatable :: nodes(:)
         real(r64), allocatable :: N(:, :)
+        contains
+            procedure, pass :: inspect => inspect_element
     end type FiniteElement_t
 
     type, extends(FiniteElement_t), public :: LinearElement_t
@@ -60,7 +61,7 @@ module element_library
             ndof = ndim
 
             ! Allocate the nodes and shape functions for the element
-            ! allocate(elem%shape_funcs(nnodes))
+            allocate(elem%shape_funcs(nnodes))
             allocate(elem%nodes(nnodes))
             allocate(elem%N(ndim, ndim*nnodes))
             
@@ -79,13 +80,13 @@ module element_library
             select case (nnodes)
             case (4)
                 elem%nodes(1)%natural_coords = [-1, -1]
-                ! elem%shape_funcs(1)%f => shape_N1_linear
+                elem%shape_funcs(1)%f => shape_N1_linear
                 elem%nodes(2)%natural_coords = [1, -1]
-                ! elem%shape_funcs(2)%f => shape_N1_linear
+                elem%shape_funcs(2)%f => shape_N1_linear
                 elem%nodes(3)%natural_coords = [1, 1]
-                ! elem%shape_funcs(3)%f => shape_N1_linear
+                elem%shape_funcs(3)%f => shape_N1_linear
                 elem%nodes(4)%natural_coords = [-1, 1]
-                ! elem%shape_funcs(4)%f => shape_N1_linear
+                elem%shape_funcs(4)%f => shape_N1_linear
             end select
 
             ! Compute the shape function matrix N
@@ -110,16 +111,29 @@ module element_library
             ! end do
         end function construct_linear_element
 
-        ! function shape_N1_linear(natural_coords) result(N)
-        !     ! Shape function for node 1 of a linear element
-        !     real(r64), intent(in) :: natural_coords(:)
-        !     real(r64) :: N
+        subroutine inspect_element(self)
+            ! Print a summary of information about the finite element
+            ! E.g., nodal coordinates
+            class(FiniteElement_t), intent(in) :: self
 
-        !     select case (size(natural_coords))
-        !     case (2)
-        !         N = 0.25*(natural_coords(1) - 1)*(natural_coords(2) - 1)
-        !     end select
-        ! end function shape_N1_linear
+            integer :: i
+
+            print *, 'node', ' glob_1', ' glob_2', ' glob_3', ' elem_1', ' elem_2', ' elem_3', ' nat_1', ' nat_2', ' nat_3'
+            do i = 1, size(self%nodes)
+                print *, self%nodes(i)%number, self%nodes(i)%global_coords, self%nodes(i)%element_coords, self%nodes(i)%natural_coords
+            end do            
+        end subroutine inspect_element
+
+        function shape_N1_linear(natural_coords) result(N)
+            ! Shape function for node 1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+
+            select case (size(natural_coords))
+            case (2)
+                N = 0.25*(natural_coords(1) - 1)*(natural_coords(2) - 1)
+            end select
+        end function shape_N1_linear
 
         ! function shape_N2_linear(natural_coords) result(N)
         !     ! Shape function for node 2 of a linear element
