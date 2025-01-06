@@ -3,7 +3,7 @@ cd ../comet
 make
 cd ${cwd}
 
-gfortran -c test_2d_element.f90 -I../comet/include -L../comet/bin
-gfortran *.o -L../comet/bin/libglobals -L../comet/bin/libelement_library -o test_2d_element
+# gfortran -c test_2d_element.f90 -I../comet/include
+gfortran -ffree-line-length-none -I../comet/include -o test_2d_element test_2d_element.f90 -L../comet/bin -Wl,-rpath,../comet/bin -lglobals -lelement_library
 chmod +x test_2d_element
 ./test_2d_element
