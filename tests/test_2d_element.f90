@@ -18,8 +18,9 @@ program main
     elem = LinearElement_t(coords)
 
     call elem%inspect()
-    print *, elem%shape_funcs(1)%f(elem%nodes(1)%natural_coords)
-    print *, elem%shape_funcs(2)%f(elem%nodes(2)%natural_coords)
-    print *, elem%shape_funcs(3)%f(elem%nodes(3)%natural_coords)
-    print *, elem%shape_funcs(4)%f(elem%nodes(4)%natural_coords)
+    print *, elem%nodes(1)%shape_func([1.0_r64, 1.0_r64])
+    print *, elem%nodes(2)%shape_func([1.0_r64, 1.0_r64])
+    print *, elem%nodes(3)%shape_func([1.0_r64, 1.0_r64])
+    print *, elem%nodes(4)%shape_func([1.0_r64, 1.0_r64])
+    print *, elem%compute_N([1.0_r64, 1.0_r64])
 end program main
