@@ -21,6 +21,7 @@ globals:
 	rm *.o
 
 element_library:
+	$(FC) $(FCFLAGS) -c $(SRC)/element_utils.f90 -I$(BUILD) -J$(BUILD)
 	$(FC) $(FCFLAGS) -c $(SRC)/element_library.f90 -I$(BUILD) -J$(BUILD)
 	$(FC) -shared -o $(BUILD)/libelement_library.so  *.o -L$(BUILD) -lglobals
 	rm *.o
