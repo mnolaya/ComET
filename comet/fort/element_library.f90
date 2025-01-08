@@ -6,11 +6,6 @@ module element_library
     implicit none
     private
 
-    type :: ShapeFunction_t
-        ! Type containing pointer to a shape function for assembling into an array
-        procedure(shape_func), pointer, nopass :: f => null()
-    end type ShapeFunction_t
-
     type :: Node_t
         ! Type for a node on a finite element
         integer :: number
@@ -64,8 +59,8 @@ module element_library
             real(r64), intent(in) :: global_coords(:, :)
             type(LinearElement_t) :: elem
 
-            integer :: i, j, nnodes, ndof, ndim
-            real(r64), allocatable :: N_(:)
+            ! Loc vars
+            integer :: i
 
             ! Assign element parameters
             elem%nnodes = size(global_coords, dim=1)
