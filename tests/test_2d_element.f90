@@ -9,7 +9,8 @@ program main
 
     integer, parameter :: ngrid = 50
     integer :: i, j
-    real(r64) :: elem_coords(4, 2), eta_1(ngrid), eta_2(ngrid), grid(2, ngrid, ngrid)
+    real(r64) :: elem_coords(4, 2), eta_1(ngrid), eta_2(ngrid), grid(2, ngrid, ngrid), xy(2)
+    real(r64), allocatable :: N(:, :), node_coords(:)
     type(LinearElement_t) :: elem
     
     ! Construct a linear element
@@ -24,15 +25,17 @@ program main
     eta_2 = linspace(-1.0_r64, 1.0_r64, ngrid)
     grid = meshgrid(eta_1, eta_2)
 
-    ! Compute shape functions for verification
-    print *, 'eta1 ', 'eta2 ', 'N1 ', 'N2 ', 'N3 ', 'N4'
-    do i = 1, ngrid
-        do j = 1, ngrid
-            print *, grid(1, i, j), grid(2, i, j), &
-            elem%nodes(1)%shape_func([grid(1, i, j), grid(2, i, j)]), &
-            elem%nodes(2)%shape_func([grid(1, i, j), grid(2, i, j)]), &
-            elem%nodes(3)%shape_func([grid(1, i, j), grid(2, i, j)]), &
-            elem%nodes(4)%shape_func([grid(1, i, j), grid(2, i, j)])
+    ! Compute global coordinates and shape functions for verification
+    node_coords = elem%get_nodal_coordinate_vec(loc='global')
+    print *, 'eta1 ', 'eta2 ', 'x1 ', 'x2 ', 'N1 ', 'N2 ', 'N3 ', 'N4'
+    do i = 1, size(grid, dim=2)
+        do j = 1, size(grid, dim=3)
+            ! Shape function matrix 
+            N = elem%compute_N(grid(:, i, j))
+
+            ! Global xy coordinates
+            xy = matmul(N, node_coords)
+            print *, grid(1, i, j), grid(2, i, j), xy, N(1, 1), N(1, 3), N(1, 5), N(1, 7)
         end do
     end do
 end program main
