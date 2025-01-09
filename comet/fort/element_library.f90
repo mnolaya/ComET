@@ -6,13 +6,18 @@ module element_library
     implicit none
     private
 
+    type :: ShapeFunctionPointer
+        procedure(shape_func), pointer, nopass :: f => null()
+    end type ShapeFunctionPointer
+
     type :: Node_t
         ! Type for a node on a finite element
         integer :: number
         real(r64), allocatable :: natural_coords(:)
         real(r64), allocatable :: element_coords(:)
         real(r64), allocatable :: global_coords(:)
-        procedure(shape_func), pointer, nopass :: shape_func => null()
+        type(ShapeFunctionPointer) :: shape_func
+        type(ShapeFunctionPointer), allocatable :: shape_func_deriv(:)
     end type Node_t
 
     type, abstract :: FiniteElement_t
@@ -77,22 +82,31 @@ module element_library
                 allocate(elem%nodes(i)%element_coords(elem%ndim))
                 allocate(elem%nodes(i)%global_coords(elem%ndim))
                 allocate(elem%nodes(i)%natural_coords(elem%ndim))
+                allocate(elem%nodes(i)%shape_func_deriv(elem%ndim))
                 elem%nodes(i)%global_coords = global_coords(i, :)
                 elem%nodes(i)%element_coords = global_coords(i, :) - elem%nodes(1)%global_coords
             end do
             
             ! Update the element natural coordinates, ordered CCW
-            ! Update the shape function pointers
+            ! Update the shape function and shape function derivative pointers
             select case (elem%ndim)
             case (2)
                 elem%nodes(1)%natural_coords = [-1, -1]
-                elem%nodes(1)%shape_func => shape_N1_linear
+                elem%nodes(1)%shape_func%f => shape_N1_linear
+                elem%nodes(1)%shape_func_deriv(1)%f => shape_deriv_N11_linear
+                elem%nodes(1)%shape_func_deriv(2)%f => shape_deriv_N12_linear
                 elem%nodes(2)%natural_coords = [1, -1]
-                elem%nodes(2)%shape_func => shape_N2_linear
+                elem%nodes(2)%shape_func%f => shape_N2_linear
+                elem%nodes(2)%shape_func_deriv(1)%f => shape_deriv_N21_linear
+                elem%nodes(2)%shape_func_deriv(2)%f => shape_deriv_N22_linear
                 elem%nodes(3)%natural_coords = [1, 1]
-                elem%nodes(3)%shape_func => shape_N3_linear
+                elem%nodes(3)%shape_func%f => shape_N3_linear
+                elem%nodes(3)%shape_func_deriv(1)%f => shape_deriv_N31_linear
+                elem%nodes(3)%shape_func_deriv(2)%f => shape_deriv_N32_linear
                 elem%nodes(4)%natural_coords = [-1, 1]
-                elem%nodes(4)%shape_func => shape_N4_linear
+                elem%nodes(4)%shape_func%f => shape_N4_linear
+                elem%nodes(4)%shape_func_deriv(1)%f => shape_deriv_N41_linear
+                elem%nodes(4)%shape_func_deriv(2)%f => shape_deriv_N42_linear
             end select
         end function construct_linear_element
 
@@ -111,10 +125,10 @@ module element_library
             case (2)
                 ! Compute the components of N
                 N_ = [ &
-                    self%nodes(1)%shape_func(natural_coords), &
-                    self%nodes(2)%shape_func(natural_coords), &
-                    self%nodes(3)%shape_func(natural_coords), &
-                    self%nodes(4)%shape_func(natural_coords) &
+                    self%nodes(1)%shape_func%f(natural_coords), &
+                    self%nodes(2)%shape_func%f(natural_coords), &
+                    self%nodes(3)%shape_func%f(natural_coords), &
+                    self%nodes(4)%shape_func%f(natural_coords) &
                 ]
 
                 ! Assign to shape function derivative matrix
@@ -218,4 +232,92 @@ module element_library
                 N = -0.25*(natural_coords(1) - 1)*(natural_coords(2) + 1)
             end select
         end function shape_N4_linear
+
+        function shape_deriv_N11_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = 0.25*(natural_coords(2) - 1)
+            end select
+        end function shape_deriv_N11_linear
+
+        function shape_deriv_N12_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = 0.25*(natural_coords(1) - 1)
+            end select
+        end function shape_deriv_N12_linear
+
+        function shape_deriv_N21_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = -0.25*(natural_coords(2) - 1)
+            end select
+        end function shape_deriv_N21_linear
+
+        function shape_deriv_N22_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = -0.25*(natural_coords(1) + 1)
+            end select
+        end function shape_deriv_N22_linear
+
+        function shape_deriv_N31_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = 0.25*(natural_coords(2) + 1)
+            end select
+        end function shape_deriv_N31_linear
+
+        function shape_deriv_N32_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = 0.25*(natural_coords(1) + 1)
+            end select
+        end function shape_deriv_N32_linear
+
+        function shape_deriv_N41_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = -0.25*(natural_coords(2) + 1)
+            end select
+        end function shape_deriv_N41_linear
+
+        function shape_deriv_N42_linear(natural_coords) result(N)
+            ! Shape function derivative for node 1 with respect to eta1 of a linear element
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: N
+            
+            select case (size(natural_coords))
+            case (2)
+                N = -0.25*(natural_coords(1) - 1)
+            end select
+        end function shape_deriv_N42_linear
 end module element_library
