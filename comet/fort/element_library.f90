@@ -23,6 +23,7 @@ module element_library
         real(r64), allocatable :: N(:, :)
         contains
             procedure, pass :: inspect => inspect_element
+            procedure, pass :: get_nodal_coordinate_vec
             procedure(compute_N), deferred, pass :: compute_N
     end type FiniteElement_t
 
@@ -109,7 +110,12 @@ module element_library
             select case (self%ndim)
             case (2)
                 ! Compute the components of N
-                N_ = [self%nodes(1)%shape_func(natural_coords), self%nodes(2)%shape_func(natural_coords), self%nodes(3)%shape_func(natural_coords), self%nodes(4)%shape_func(natural_coords)]
+                N_ = [ &
+                    self%nodes(1)%shape_func(natural_coords), &
+                    self%nodes(2)%shape_func(natural_coords), &
+                    self%nodes(3)%shape_func(natural_coords), &
+                    self%nodes(4)%shape_func(natural_coords) &
+                ]
 
                 ! Assign to shape function derivative matrix
                 N(1, :) = [N_(1), 0.0_r64, N_(2), 0.0_r64, N_(3), 0.0_r64, N_(4), 0.0_r64]
@@ -129,6 +135,45 @@ module element_library
                 print *, self%nodes(i)%number, self%nodes(i)%global_coords, self%nodes(i)%element_coords, self%nodes(i)%natural_coords
             end do            
         end subroutine inspect_element
+
+        function get_nodal_coordinate_vec(self, loc) result(coords)
+            ! Get the (nnodes*ndim, 1) vector of nodal coordinates for the element
+            class(FiniteElement_t), intent(in) :: self
+            character(*), intent(in), optional :: loc
+
+            ! Loc vars
+            character(CHAR_SIZE) :: loc_
+            integer :: i
+            real(r64), allocatable :: coords_(:, :), coords(:)
+
+            ! Override default global coordinates if provided
+            loc_ = 'global'
+            if (present(loc)) then
+                loc_ = loc
+            end if
+
+            ! Allocate temp 2D matrix for storing coordinates, 1 row per node
+            allocate(coords_(size(self%nodes), size(self%nodes(1)%element_coords)))
+
+            ! Get coordinates
+            select case (trim(loc_))
+            case ('element')
+                do i = 1, size(self%nodes)
+                    coords_(i, :) = self%nodes(i)%element_coords
+                end do
+            case ('natural')
+                do i = 1, size(self%nodes)
+                    coords_(i, :) = self%nodes(i)%natural_coords
+                end do
+            case default
+                do i = 1, size(self%nodes)
+                    coords_(i, :) = self%nodes(i)%global_coords
+                end do
+            end select
+
+            ! Reshape 2D matrix to 1D vector, where x,y pairs of nodal coordinates are indexed consecutively
+            coords = reshape(transpose(coords_), shape=[size(coords_)])
+        end function get_nodal_coordinate_vec
 
         function shape_N1_linear(natural_coords) result(N)
             ! Shape function for node 1 of a linear element
