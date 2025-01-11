@@ -30,12 +30,15 @@ module element_library
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
             procedure(compute_N), deferred, pass :: compute_N
+            procedure(compute_N), deferred, pass :: compute_dN
+            ! procedure(compute_J)
     end type FiniteElement_t
 
     type, extends(FiniteElement_t), public :: LinearElement_t
         ! Linear finite element type
         contains
             procedure, pass :: compute_N => compute_N_linear
+            procedure, pass :: compute_dN => compute_dN_linear
     end type LinearElement_t
 
     abstract interface
@@ -53,6 +56,14 @@ module element_library
             real(r64), intent(in) :: natural_coords(:)
             real(r64), allocatable :: N(:, :)
         end function compute_N
+
+        function compute_J(self, dN) result(J)
+            ! Deferred interface for computing the element shape function derivative matrix N
+            import r64, FiniteElement_t
+            class(FiniteElement_t), intent(in) :: self
+            real(r64), intent(in) :: dN(:, :)
+            real(r64), allocatable :: J(:, :)
+        end function compute_J
     end interface
 
     interface LinearElement_t
@@ -131,11 +142,46 @@ module element_library
                     self%nodes(4)%shape_func%f(natural_coords) &
                 ]
 
-                ! Assign to shape function derivative matrix
+                ! Assign to shape function matrix
                 N(1, :) = [N_(1), 0.0_r64, N_(2), 0.0_r64, N_(3), 0.0_r64, N_(4), 0.0_r64]
                 N(2, :) = [0.0_r64, N_(1), 0.0_r64, N_(2), 0.0_r64, N_(3), 0.0_r64, N_(4)]
             end select
         end function compute_N_linear
+
+        function compute_dN_linear(self, natural_coords) result(dN)
+            ! Compute the shape function derivative matrix dN for a 2D element
+            class(LinearElement_t), intent(in) :: self
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64), allocatable :: dN(:, :)
+
+            ! Loc vars
+            real(r64), allocatable :: dN1_(:), dN2_(:)
+
+            ! Assign to correct position in shape function matrix
+            allocate(dN(self%ndim*self%ndof, self%nnodes*self%ndof))
+            select case (self%ndim)
+            case (2)
+                ! Compute the components of N
+                dN1_ = [ &
+                    self%nodes(1)%shape_func_deriv(1)%f(natural_coords), &
+                    self%nodes(2)%shape_func_deriv(1)%f(natural_coords), &
+                    self%nodes(3)%shape_func_deriv(1)%f(natural_coords), &
+                    self%nodes(4)%shape_func_deriv(1)%f(natural_coords) &
+                ]
+                dN2_ = [ &
+                    self%nodes(1)%shape_func_deriv(2)%f(natural_coords), &
+                    self%nodes(2)%shape_func_deriv(2)%f(natural_coords), &
+                    self%nodes(3)%shape_func_deriv(2)%f(natural_coords), &
+                    self%nodes(4)%shape_func_deriv(2)%f(natural_coords) &
+                ]
+
+                ! Assign to shape function derivative matrix
+                dN(1, :) = [dN1_(1), 0.0_r64, dN1_(2), 0.0_r64, dN1_(3), 0.0_r64, dN1_(4), 0.0_r64]
+                dN(2, :) = [dN2_(1), 0.0_r64, dN2_(2), 0.0_r64, dN2_(3), 0.0_r64, dN2_(4), 0.0_r64]
+                dN(3, :) = [0.0_r64, dN1_(1), 0.0_r64, dN1_(2), 0.0_r64, dN1_(3), 0.0_r64, dN1_(4)]
+                dN(4, :) = [0.0_r64, dN2_(1), 0.0_r64, dN2_(2), 0.0_r64, dN2_(3), 0.0_r64, dN2_(4)]
+            end select
+        end function compute_dN_linear
 
         subroutine inspect_element(self)
             ! Print a summary of information about the finite element
