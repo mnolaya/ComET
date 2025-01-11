@@ -7,7 +7,7 @@ module element_library
     private
 
     type :: ShapeFunctionPointer
-        procedure(shape_func), pointer, nopass :: f => null()
+        procedure(shape_func_iface), pointer, nopass :: f => null()
     end type ShapeFunctionPointer
 
     type :: Node_t
@@ -29,8 +29,8 @@ module element_library
         contains
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
-            procedure(compute_N), deferred, pass :: compute_N
-            procedure(compute_N), deferred, pass :: compute_dN
+            procedure(shape_func_matrix_iface), deferred, pass :: compute_N
+            procedure(shape_func_matrix_iface), deferred, pass :: compute_dN
             ! procedure(compute_J)
     end type FiniteElement_t
 
@@ -42,28 +42,28 @@ module element_library
     end type LinearElement_t
 
     abstract interface
-        function shape_func(natural_coords) result(N)
+        function shape_func_iface(natural_coords) result(N)
             ! Generic interface for a shape function computation
             import r64
             real(r64), intent(in) :: natural_coords(:)
             real(r64) :: N
-        end function shape_func
+        end function shape_func_iface
 
-        function compute_N(self, natural_coords) result(N)
-            ! Deferred interface for computing the element shape function derivative matrix N
+        function shape_func_matrix_iface(self, natural_coords) result(N)
+            ! Deferred interface for computing the element shape function matrix N and shape function derivative matrix dN
             import r64, FiniteElement_t
             class(FiniteElement_t), intent(in) :: self
             real(r64), intent(in) :: natural_coords(:)
             real(r64), allocatable :: N(:, :)
-        end function compute_N
+        end function shape_func_matrix_iface
 
-        function compute_J(self, dN) result(J)
-            ! Deferred interface for computing the element shape function derivative matrix N
+        function jacobian_iface(self, dN) result(J)
+            ! Deferred interface for computing the "full" element Jacobian matrix J
             import r64, FiniteElement_t
             class(FiniteElement_t), intent(in) :: self
             real(r64), intent(in) :: dN(:, :)
             real(r64), allocatable :: J(:, :)
-        end function compute_J
+        end function jacobian_iface
     end interface
 
     interface LinearElement_t
