@@ -31,7 +31,8 @@ module element_library
             procedure, pass :: get_nodal_coordinate_vec
             procedure(shape_func_matrix_iface), deferred, pass :: compute_N
             procedure(shape_func_matrix_iface), deferred, pass :: compute_dN
-            ! procedure(compute_J)
+            procedure(jacobian_iface), deferred, pass :: compute_J
+            procedure(B_matrix_iface), deferred, pass :: compute_B
     end type FiniteElement_t
 
     type, extends(FiniteElement_t), public :: LinearElement_t
@@ -39,6 +40,8 @@ module element_library
         contains
             procedure, pass :: compute_N => compute_N_linear
             procedure, pass :: compute_dN => compute_dN_linear
+            procedure, pass :: compute_J => compute_J_linear
+            procedure, pass :: compute_B => compute_B_linear
     end type LinearElement_t
 
     abstract interface
@@ -64,6 +67,14 @@ module element_library
             real(r64), intent(in) :: dN(:, :)
             real(r64), allocatable :: J(:, :)
         end function jacobian_iface
+
+        function B_matrix_iface(self, dN, J) result(B)
+            ! Deferred interface for computing the element B matrix
+            import r64, FiniteElement_t
+            class(FiniteElement_t), intent(in) :: self
+            real(r64), intent(in) :: dN(:, :), J(:, :)
+            real(r64), allocatable :: B(:, :)            
+        end function B_matrix_iface
     end interface
 
     interface LinearElement_t
@@ -182,6 +193,44 @@ module element_library
                 dN(4, :) = [0.0_r64, dN2_(1), 0.0_r64, dN2_(2), 0.0_r64, dN2_(3), 0.0_r64, dN2_(4)]
             end select
         end function compute_dN_linear
+
+        function compute_J_linear(self, dN) result(J)
+            ! Compute the "full" Jacobian matrix J for a 2D element
+            class(LinearElement_t), intent(in) :: self
+            real(r64), intent(in) :: dN(:, :)
+            real(r64), allocatable :: J(:, :)
+
+            ! Loc vars
+            real(r64), allocatable :: elem_coords(:), J_col(:), J_mat(:, :)
+
+            ! Get element coordinates as a vector and compute the Jacobian in column form
+            elem_coords = self%get_nodal_coordinate_vec()
+            J_col = matmul(dN, elem_coords)
+
+            ! Convert to matrix format
+            allocate(J_mat(self%ndim, self%ndim))
+            select case (self%ndim)
+            case (2)
+                J_mat(1, :) = [J_col(1), J_col(3)]
+                J_mat(2, :) = [J_col(2), J_col(4)]
+            end select
+
+            ! Convert to "full" format (zero matrix in quadrants 2 and 3)
+            allocate(J(2*self%ndim, 2*self%ndim))
+            J = 0
+            J(1:self%ndim, 1:self%ndim) = J_mat
+            J(self%ndim+1:2*self%ndim, self%ndim+1:2*self%ndim) = J_mat
+        end function compute_J_linear
+
+        function compute_B_linear(self, dN, J) result(B)
+            ! Compute the "full" Jacobian matrix J for a 2D element
+            class(LinearElement_t), intent(in) :: self
+            real(r64), intent(in) :: dN(:, :), J(:, :)
+            real(r64), allocatable :: B(:, :)
+
+            ! Loc vars
+            ! real(r64), parameter
+        end function compute_B_linear
 
         subroutine inspect_element(self)
             ! Print a summary of information about the finite element
