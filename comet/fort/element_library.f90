@@ -2,9 +2,13 @@ module element_library
 
     use iso_fortran_env, only: r64 => real64
     use constants, only: CHAR_SIZE
+    use linear_algebra, only: invert
+    use gauss_integration, only: IntegrationPoint, make_integration_points
 
     implicit none
     private
+
+    real(r64), parameter :: STRAIN_COMPONENT_MATRIX_2D(3, 4) = reshape([1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0], shape=[3, 4], order=[2, 1])
 
     type :: ShapeFunctionPointer
         procedure(shape_func_iface), pointer, nopass :: f => null()
@@ -25,7 +29,7 @@ module element_library
         integer :: number, ndim, ndof, nnodes
         character(CHAR_SIZE) :: material_name
         type(Node_t), allocatable :: nodes(:)
-        real(r64), allocatable :: N(:, :)
+        type(IntegrationPoint), allocatable :: integration_pts(:)
         contains
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
@@ -41,7 +45,7 @@ module element_library
             procedure, pass :: compute_N => compute_N_linear
             procedure, pass :: compute_dN => compute_dN_linear
             procedure, pass :: compute_J => compute_J_linear
-            procedure, pass :: compute_B => compute_B_linear
+            procedure, nopass :: compute_B => compute_B_linear
     end type LinearElement_t
 
     abstract interface
@@ -68,10 +72,9 @@ module element_library
             real(r64), allocatable :: J(:, :)
         end function jacobian_iface
 
-        function B_matrix_iface(self, dN, J) result(B)
+        function B_matrix_iface(dN, J) result(B)
             ! Deferred interface for computing the element B matrix
-            import r64, FiniteElement_t
-            class(FiniteElement_t), intent(in) :: self
+            import r64
             real(r64), intent(in) :: dN(:, :), J(:, :)
             real(r64), allocatable :: B(:, :)            
         end function B_matrix_iface
@@ -82,13 +85,14 @@ module element_library
     end interface LinearElement_t
 
     contains
-        function construct_linear_element(global_coords) result(elem)
+        function construct_linear_element(global_coords, num_itg_pts) result(elem)
             ! Construct a linear finite element
             real(r64), intent(in) :: global_coords(:, :)
+            integer, intent(in), optional :: num_itg_pts
             type(LinearElement_t) :: elem
 
             ! Loc vars
-            integer :: i
+            integer :: i, num_itg_pts_
 
             ! Assign element parameters
             elem%nnodes = size(global_coords, dim=1)
@@ -130,6 +134,11 @@ module element_library
                 elem%nodes(4)%shape_func_deriv(1)%f => shape_deriv_N41_linear
                 elem%nodes(4)%shape_func_deriv(2)%f => shape_deriv_N42_linear
             end select
+
+            ! Set the integration points on the element (default: 2)
+            num_itg_pts_ = 2
+            if (present(num_itg_pts)) num_itg_pts_ = num_itg_pts
+            elem%integration_pts = make_integration_points(num_itg_pts_)
         end function construct_linear_element
 
         function compute_N_linear(self, natural_coords) result(N)
@@ -222,14 +231,16 @@ module element_library
             J(self%ndim+1:2*self%ndim, self%ndim+1:2*self%ndim) = J_mat
         end function compute_J_linear
 
-        function compute_B_linear(self, dN, J) result(B)
+        function compute_B_linear(dN, J) result(B)
             ! Compute the "full" Jacobian matrix J for a 2D element
-            class(LinearElement_t), intent(in) :: self
             real(r64), intent(in) :: dN(:, :), J(:, :)
             real(r64), allocatable :: B(:, :)
 
-            ! Loc vars
-            ! real(r64), parameter
+            ! Compute B using the 2D strain component matrix to set the strain vector, e.g.
+            ! SCM_2D = [1, 0, 0, 0
+            !           0, 0, 0, 1
+            !           0, 1, 1, 0]
+            B = matmul(STRAIN_COMPONENT_MATRIX_2D, matmul(invert(J), dN))
         end function compute_B_linear
 
         subroutine inspect_element(self)
