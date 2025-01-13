@@ -8,7 +8,10 @@ FC=gfortran
 FCFLAGS=-fPIC -ffree-line-length-none
 LNKFLAGS=-fPIC -fno-underscoring -shared -Wl,-rpath=`pwd`
 
-all: make_dirs globals element_library copy clean
+LAPACK_LIBDIR=/usr/lib/x86_64-linux-gnu
+LAPACK_LIBS=-llapack -lblas
+
+all: make_dirs globals linear_algebra element_library copy clean
 
 make_dirs:
 	mkdir -p $(BUILD)
@@ -19,6 +22,12 @@ globals:
 	$(FC) $(FCFLAGS) -c $(SRC)/constants.f90 -I$(BUILD) -J$(BUILD)
 	$(FC) -shared -o $(BUILD)/libglobals.so *.o
 	rm *.o
+
+linear_algebra:
+	$(FC) $(FCFLAGS) -c $(SRC)/linear_algebra.f90 -I$(BUILD) -J$(BUILD)
+	$(FC) -shared -o $(BUILD)/liblinear_algebra.so *.o -L$(LAPACK_LIBDIR) $(LAPACK_LIBS) -L$(BUILD) -lglobals
+	rm *.o
+
 
 element_library:
 	$(FC) $(FCFLAGS) -c $(SRC)/element_utils.f90 -I$(BUILD) -J$(BUILD)
