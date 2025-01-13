@@ -1,0 +1,14 @@
+
+#!/bin/bash
+
+cwd=$(pwd)
+cd ../comet
+make
+cd ${cwd}
+
+# gfortran -c test_2d_element.f90 -I../comet/include
+gfortran -ffree-line-length-none -I../comet/include -o test_lapack test_lapack.f90 \
+    -L../comet/bin -Wl,-rpath,../comet/bin \
+    -lglobals -llinear_algebra -lelement_library
+chmod +x test_lapack
+./test_lapack
