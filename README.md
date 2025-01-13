@@ -9,10 +9,10 @@ Clone the repo:
 git clone https://github.com/mnolaya/ComET.git
 ```
 
-Install gfortran and make:
+Install `gfortran`, GNU `make`, `LAPACK`, and `BLAS`:
 
 ```bash
-sudo apt-get install gfortran make
+sudo apt-get install gfortran make liblapack-dev libblas-dev
 ```
 
 Build the shared libraries using the Makefile:
