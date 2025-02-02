@@ -3,14 +3,16 @@ program main
     use iso_fortran_env, only: r64 => real64
     use element_utils, only: linspace, meshgrid
     use element_library, only: LinearElement_t
+    use elastic_materials, only: compute_D_2D_isotropic
     use constants
 
     implicit none
 
     integer, parameter :: ngrid = 50
     integer :: i, j
-    real(r64) :: elem_coords(4, 2), eta_1(ngrid), eta_2(ngrid), grid(2, ngrid, ngrid), xy(2)
-    real(r64), allocatable :: N(:, :), node_coords(:)
+    real(r64), parameter :: E = 250, nu = 0.25
+    real(r64) :: elem_coords(4, 2), eta_1(ngrid), eta_2(ngrid), grid(2, ngrid, ngrid), xy(2), D(3, 3)
+    real(r64), allocatable :: N(:, :), node_coords(:), k(:, :)
     type(LinearElement_t) :: elem
     
     ! Construct a linear element
@@ -35,7 +37,11 @@ program main
 
             ! Global xy coordinates
             xy = matmul(N, node_coords)
-            print *, grid(1, i, j), grid(2, i, j), xy, N(1, 1), N(1, 3), N(1, 5), N(1, 7)
+            ! print *, grid(1, i, j), grid(2, i, j), xy, N(1, 1), N(1, 3), N(1, 5), N(1, 7)
         end do
     end do
+
+    ! Compute the element stiffness matrix.
+    D = compute_D_2D_isotropic(E, nu, 'strain')
+    k = elem%compute_k(D)
 end program main
