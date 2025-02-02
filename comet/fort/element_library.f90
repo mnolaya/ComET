@@ -2,13 +2,15 @@ module element_library
 
     use iso_fortran_env, only: r64 => real64
     use constants, only: CHAR_SIZE
-    use linear_algebra, only: invert
-    use gauss_integration, only: IntegrationPoint, make_integration_points
+    use linear_algebra, only: invert, determinant
+    use gauss_integration, only: IntegrationPoint_t, make_integration_points
+    use element_utils, only: meshgrid
 
     implicit none
     private
 
     real(r64), parameter :: STRAIN_COMPONENT_MATRIX_2D(3, 4) = reshape([1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0], shape=[3, 4], order=[2, 1])
+    real(r64), parameter :: STRAIN_TRANSFORM_MATRIX_2D(3, 3) = reshape([1, 0, 0, 0, 1, 0, 0, 0, 2], shape=[3, 3], order=[2, 1])
 
     type :: ShapeFunctionPointer
         procedure(shape_func_iface), pointer, nopass :: f => null()
@@ -29,22 +31,26 @@ module element_library
         integer :: number, ndim, ndof, nnodes
         character(CHAR_SIZE) :: material_name
         type(Node_t), allocatable :: nodes(:)
-        type(IntegrationPoint), allocatable :: integration_pts(:)
+        type(IntegrationPoint_t), allocatable :: integration_pts(:)
+        real(r64), allocatable :: transform(:, :)
         contains
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
             procedure(shape_func_matrix_iface), deferred, pass :: compute_N
             procedure(shape_func_matrix_iface), deferred, pass :: compute_dN
+            procedure(stiffness_iface), deferred, pass :: compute_k
             procedure(jacobian_iface), deferred, pass :: compute_J
-            procedure(B_matrix_iface), deferred, pass :: compute_B
+            procedure(B_matrix_iface), deferred, nopass :: compute_B
     end type FiniteElement_t
 
     type, extends(FiniteElement_t), public :: LinearElement_t
         ! Linear finite element type
+        real(r64) :: thickness = 1
         contains
             procedure, pass :: compute_N => compute_N_linear
             procedure, pass :: compute_dN => compute_dN_linear
             procedure, pass :: compute_J => compute_J_linear
+            procedure, pass :: compute_k => compute_k_linear
             procedure, nopass :: compute_B => compute_B_linear
     end type LinearElement_t
 
@@ -78,6 +84,14 @@ module element_library
             real(r64), intent(in) :: dN(:, :), J(:, :)
             real(r64), allocatable :: B(:, :)            
         end function B_matrix_iface
+
+        function stiffness_iface(self, D) result(k)
+            ! Deferred interface for computing the element stiffness matrix k.
+            import r64, FiniteElement_t
+            class(FiniteElement_t), intent(in) :: self
+            real(r64), intent(in) :: D(:, :)
+            real(r64), allocatable :: k(:, :)
+        end function stiffness_iface
     end interface
 
     interface LinearElement_t
@@ -242,6 +256,43 @@ module element_library
             !           0, 1, 1, 0]
             B = matmul(STRAIN_COMPONENT_MATRIX_2D, matmul(invert(J), dN))
         end function compute_B_linear
+
+        function compute_k_linear(self, D) result(k)
+            ! Compute the element stiffness matrix k for a 2D element
+            class(LinearElement_t), intent(in) :: self
+            real(r64), intent(in) :: D(:, :)
+            real(r64), allocatable :: k(:, :)
+
+            ! Loc vars
+            integer :: i, m
+            real(r64) :: eta(2), w(2), J_det
+            real(r64), allocatable :: dN(:, :), J(:, :), B(:, :)
+
+            ! Size of the element stiffness should be (nnodes*ndof, nnodes*ndof)
+            allocate(k(self%nnodes*self%ndof, self%nnodes*self%ndof))
+            
+            select case (self%ndim)
+            case (2)
+                ! Update k for each integration point
+                do i = 1, size(self%integration_pts)
+                    do m = 1, size(self%integration_pts)
+                        eta = [self%integration_pts(i)%loc, self%integration_pts(m)%loc]
+                        w = [self%integration_pts(i)%weight, self%integration_pts(m)%weight]
+    
+                        ! Compute dN, J, B matrices
+                        dN = self%compute_dN(eta)
+                        J = self%compute_J(dN)
+                        B = self%compute_B(dN, J)
+    
+                        ! Compute the determinant of the Jacobian
+                        J_det = determinant(J(1:2, 1:2))
+    
+                        ! Update k
+                        k = k + self%thickness*w(i)*w(m)*matmul(transpose(B), matmul(D, B))*J_det
+                    end do
+                end do
+            end select
+        end function compute_k_linear
 
         subroutine inspect_element(self)
             ! Print a summary of information about the finite element
