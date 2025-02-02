@@ -18,7 +18,7 @@ module gauss_integration
         function make_integration_points(num) result(itg_pts)
             ! Get num Gaussian integration points set with their locations and weights
             integer, intent(in) :: num
-            type(IntegrationPoint), allocatable :: itg_pts(:)
+            type(IntegrationPoint_t), allocatable :: itg_pts(:)
 
             ! Set the appropriate integration point locations and weights
             allocate(itg_pts(num))
