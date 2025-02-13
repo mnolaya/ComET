@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+
+set -e
+
 cwd=$(pwd)
 cd ../comet
 make
@@ -7,3 +11,4 @@ cd ${cwd}
 gfortran -ffree-line-length-none -I../comet/include -o test_2d_element test_2d_element.f90 -L../comet/bin -Wl,-rpath,../comet/bin -lglobals -lelement_library
 chmod +x test_2d_element
 ./test_2d_element > element_results.txt
+
