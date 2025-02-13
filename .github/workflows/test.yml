@@ -1,0 +1,25 @@
+name: Run Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # Test on the latest Ubuntu VM runner
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+
+          # TODO: Might be nice to have some easier way to install all dep as project grows
+          sudo apt update
+          sudo apt-get install gfortran make
+
+      # TODO: Hook this step up to whatever test suite / unit tests we want to run
+      - name: Run tests
+        run: tests/run_test.sh
