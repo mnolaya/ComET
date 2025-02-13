@@ -1,3 +1,8 @@
+# Ignore test results and binaries
+tests/element_results.txt
+tests/test_2d_element
+
+
 # Fortran
 *.mod
 *.o
