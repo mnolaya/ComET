@@ -32,3 +32,15 @@ copy:
 
 clean:
 	rm -rf $(BUILD) $(MOD)/*.mod $(BIN)/*.so
+
+install:
+	mkdir -p /usr/local/lib /usr/local/include
+	cp $(BIN)/*.so /usr/local/lib/
+	cp $(MOD)/*.mod /usr/local/include/
+	sudo ldconfig
+
+uninstall:
+	rm -f /usr/local/lib/libglobals.so
+	rm -f /usr/local/lib/libelement_library.so
+	rm -f /usr/local/include/*.mod
+	sudo ldconfig
