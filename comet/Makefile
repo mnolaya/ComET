@@ -8,7 +8,7 @@ FC=gfortran
 FCFLAGS=-fPIC -ffree-line-length-none
 LNKFLAGS=-fPIC -fno-underscoring -shared -Wl,-rpath=`pwd`
 
-all: make_dirs globals element_library copy clean
+all: make_dirs globals element_library copy
 
 make_dirs:
 	mkdir -p $(BUILD)
@@ -31,4 +31,16 @@ copy:
 	cp $(BUILD)/*.mod $(MOD)
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) $(MOD)/*.mod $(BIN)/*.so
+
+install:
+	mkdir -p /usr/local/lib /usr/local/include
+	cp $(BIN)/*.so /usr/local/lib/
+	cp $(MOD)/*.mod /usr/local/include/
+	sudo ldconfig
+
+uninstall:
+	rm -f /usr/local/lib/libglobals.so
+	rm -f /usr/local/lib/libelement_library.so
+	rm -f /usr/local/include/*.mod
+	sudo ldconfig
