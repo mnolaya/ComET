@@ -3,9 +3,14 @@ comet/win_build/*
 !comet/win_build/*.sln
 !comet/win_build/*.vfproj
 
-# Fortran
+# Executables
+*.exe
+
+# Fortran outputs
 *.mod
 *.o
+*.obj
+*.lib
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
