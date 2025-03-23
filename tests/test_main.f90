@@ -28,11 +28,11 @@ program main
     grid = meshgrid(eta_1, eta_2)
 
     ! Create file for writing output
-    open(newunit=funit, file='N.out', status='old', action='write')
+    open(newunit=funit, file='N.out')
 
     ! Compute global coordinates and shape functions for verification
     node_coords = elem%get_nodal_coordinate_vec(loc='global')
-    write(funit, *) 'eta1 ', 'eta2 ', 'x1 ', 'x2 ', 'N1 ', 'N2 ', 'N3 ', 'N4'
+    write(funit, '(*(G0.15,:,","))') 'eta1', 'eta2', 'x1', 'x2', 'N1', 'N2', 'N3', 'N4'
     do i = 1, size(grid, dim=2)
         do j = 1, size(grid, dim=3)
             ! Shape function matrix 
@@ -40,19 +40,19 @@ program main
 
             ! Global xy coordinates
             xy = matmul(N, node_coords)
-            write(funit, *) grid(1, i, j), grid(2, i, j), xy, N(1, 1), N(1, 3), N(1, 5), N(1, 7)
+            write(funit, '(*(G0.15,:,","))') grid(1, i, j), grid(2, i, j), xy, N(1, 1), N(1, 3), N(1, 5), N(1, 7)
         end do
     end do
     close(funit)
 
     ! Create file for writing output
-    open(newunit=funit, file='k.out', status='old', action='write')
+    open(newunit=funit, file='k.out')
 
     ! Compute the element stiffness matrix.
     D = compute_D_2D_isotropic(E, nu, 'strain')
     k = elem%compute_k(D)
     do i = 1, size(k, dim=1)
-        write(funit, *) k(i, :)
+        write(funit, '(*(G0.15,:,","))') k(i, :)
     end do
     close(funit)
 end program main

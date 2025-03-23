@@ -1,14 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35828.75 d17.13
+VisualStudioVersion = 17.13.35828.75
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "globals", "globals\globals.vfproj", "{DC2BBAB4-04FA-0C9A-4C83-37DE2A973515}"
 EndProject
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "element_library", "element_library\element_library.vfproj", "{A9352CD5-9760-E5C3-6096-A27149CFD816}"
 	ProjectSection(ProjectDependencies) = postProject
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E} = {14252013-EDA0-499E-1E74-C1C0CB8DDD3E}
 		{DC2BBAB4-04FA-0C9A-4C83-37DE2A973515} = {DC2BBAB4-04FA-0C9A-4C83-37DE2A973515}
 	EndProjectSection
+EndProject
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "linear_algebra", "linear_algebra\linear_algebra.vfproj", "{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,6 +37,14 @@ Global
 		{A9352CD5-9760-E5C3-6096-A27149CFD816}.Release|x64.Build.0 = Release|x64
 		{A9352CD5-9760-E5C3-6096-A27149CFD816}.Release|x86.ActiveCfg = Release|Win32
 		{A9352CD5-9760-E5C3-6096-A27149CFD816}.Release|x86.Build.0 = Release|Win32
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Debug|x64.ActiveCfg = Debug|x64
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Debug|x64.Build.0 = Debug|x64
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Debug|x86.ActiveCfg = Debug|Win32
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Debug|x86.Build.0 = Debug|Win32
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Release|x64.ActiveCfg = Release|x64
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Release|x64.Build.0 = Release|x64
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Release|x86.ActiveCfg = Release|Win32
+		{14252013-EDA0-499E-1E74-C1C0CB8DDD3E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
