@@ -11,6 +11,7 @@ comet/win_build/*
 *.o
 *.obj
 *.lib
+*.i90
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
