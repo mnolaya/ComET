@@ -5,3 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ComET"
 dynamic = ["version"]
+dependencies = [
+    "attrs",
+    "numpy"
+]
