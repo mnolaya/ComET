@@ -12,6 +12,7 @@ class AbaqusConverter:
     nodes: np.ndarray[float] = field(init=False)
     connectivity: dict[np.ndarray[int]] = field(init=False)
     mesh_sets: dict[str, dict[str, np.ndarray[int] | list[int]]] = field(init=False)
+    material_definitions: dict[str, dict] = field(init=False)
 
     def __attrs_post_init__(self) -> None:
         with open(self.filepath, 'r') as f:
@@ -116,8 +117,25 @@ class AbaqusConverter:
             mesh_sets[set_types[set_type]].update({set_name: labels})
         self.mesh_sets = mesh_sets
 
-    def read_materials() -> None:
-        ...
+    def read_materials(self) -> None:
+        # Retrieve chunks of file lines that contain material defintions
+        patterns = [
+            re.compile(r'\*Solid Section, elset=([^,]*)(, orientation=(\S+),|\W) material=(\S+)', re.IGNORECASE),
+            re.compile(r'\*\S+', re.IGNORECASE)
+        ]
+        line_chunks = self.chunk_file_lines_by_pattern(*patterns)
+
+        # Assign sets to class as dictionary, labeled by mesh location and set name.
+        material_definitions = {}
+        for chunk in line_chunks:
+            m = patterns[0].search(chunk[0])  # First line of chunks should contain set information
+            material_name = m.group(4)
+            orientation = None
+            if 'orientation' in chunk[0]: orientation = m.group(3)
+            set_name = m.group(1)
+            material_definitions.update({material_name: {'set_name': set_name, 'orientation': orientation}})
+
+        self.material_definitions = material_definitions
 
     def to_vtk(self, version: str = '0.1') -> None:
         nnodes = self.nodes.shape[0]
