@@ -11,6 +11,7 @@ class AbaqusConverter:
     lines: np.ndarray[str] = field(init=False, repr='...')
     nodes: np.ndarray[float] = field(init=False)
     connectivity: dict[np.ndarray[int]] = field(init=False)
+    mesh_sets: dict[str, dict[str, np.ndarray[int] | list[int]]] = field(init=False)
 
     def __attrs_post_init__(self) -> None:
         with open(self.filepath, 'r') as f:
@@ -61,6 +62,62 @@ class AbaqusConverter:
                 connectivity[elem_type].append(np.array([int(n) - 1 for n in line.split(',')[1:]]))
             connectivity[elem_type] = np.array(connectivity[elem_type])
         self.connectivity = connectivity
+
+    def chunk_file_lines_by_pattern(self, pstart: re.Pattern, pend: re.Pattern) -> list[list[str]]:
+        patterns = [pstart, pend]
+        reading = False
+        line_chunks = []
+        start = 0
+        while True:
+            if start == len(self.lines): break
+            lines = self.lines[start:]
+            chunk = []
+            reading = False
+            for line in lines:
+                start += 1
+                if line[0:2] == "**": continue    # Skip commented lines
+                matches = [p.search(line) for p in patterns]  # Check for matches
+                # Break if currently reading lines and found a second match
+                if matches[1] is not None and reading: break
+                # Set reading to true if not currently reading and found first match
+                if not reading and matches[0] is not None: reading = True
+                # Append line to chunk if currently reading
+                if reading: chunk.append(line)
+            # If a chunk was created, append to list of chunks and set start of next chunk where last ended
+            if chunk: 
+                line_chunks.append(chunk)
+                start -= 1 
+        return line_chunks
+
+    def read_sets(self) -> None:
+        # Retrieve chunks of file lines that contain element and node sets
+        patterns = [
+            re.compile(r'\*(Nset|Elset), (nset|elset)=([^,]*)', re.IGNORECASE),
+            re.compile(r'\*\S+', re.IGNORECASE)
+        ]
+        line_chunks = self.chunk_file_lines_by_pattern(*patterns)
+
+        # Assign sets to class as dictionary, labeled by mesh location and set name.
+        set_types = {'elset': 'element', 'nset': 'node'}
+        mesh_sets = {'node': {}, 'element': {}}
+        for chunk in line_chunks:
+            m = patterns[0].search(chunk[0])  # First line of chunks should contain set information
+            set_type = m.group(2).strip()
+            set_name = m.group(3).strip()
+            if 'generate' in chunk[0].lower():
+                label_range = [int(n) for n in chunk[1].split(',')]
+                label_range[1] += 1
+                labels = np.arange(*label_range)
+            else:
+                labels = []
+                for line in chunk[1:]:
+                    line = line.strip()
+                    labels.append(np.array([int(n) - 1 for n in line.split(',') if n]))
+            mesh_sets[set_types[set_type]].update({set_name: labels})
+        self.mesh_sets = mesh_sets
+
+    def read_materials() -> None:
+        ...
 
     def to_vtk(self, version: str = '0.1') -> None:
         nnodes = self.nodes.shape[0]
