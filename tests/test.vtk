@@ -1,0 +1,109 @@
+# vtk DataFile Version 5.1
+written by meshio v5.3.5
+ASCII
+DATASET UNSTRUCTURED_GRID
+POINTS 32 double
+1.0 1.0 0.333333343 1.0 0.666666687 0.333333343 1.0 0.333333343 0.333333343 1.0 0.0 0.333333343 1.0 1.0 0.0 1.0 0.666666687 0.0 1.0 0.333333343 0.0 1.0 0.0 0.0 0.666666687 1.0 0.333333343 0.666666687 0.666666687 0.333333343 0.666666687 0.333333343 0.333333343 0.666666687 0.0 0.333333343 0.666666687 1.0 0.0 0.666666687 0.666666687 0.0 0.666666687 0.333333343 0.0 0.666666687 0.0 0.0 0.333333343 1.0 0.333333343 0.333333343 0.666666687 0.333333343 0.333333343 0.333333343 0.333333343 0.333333343 0.0 0.333333343 0.333333343 1.0 0.0 0.333333343 0.666666687 0.0 0.333333343 0.333333343 0.0 0.333333343 0.0 0.0 0.0 1.0 0.333333343 0.0 0.666666687 0.333333343 0.0 0.333333343 0.333333343 0.0 0.0 0.333333343 0.0 1.0 0.0 0.0 0.666666687 0.0 0.0 0.333333343 0.0 0.0 0.0 0.0
+CELLS 10 72
+OFFSETS vtktypeint64
+0
+8
+16
+24
+32
+40
+48
+56
+64
+72
+CONNECTIVITY vtktypeint64
+8
+9
+13
+12
+0
+1
+5
+4
+9
+10
+14
+13
+1
+2
+6
+5
+10
+11
+15
+14
+2
+3
+7
+6
+16
+17
+21
+20
+8
+9
+13
+12
+17
+18
+22
+21
+9
+10
+14
+13
+18
+19
+23
+22
+10
+11
+15
+14
+24
+25
+29
+28
+16
+17
+21
+20
+25
+26
+30
+29
+17
+18
+22
+21
+26
+27
+31
+30
+18
+19
+23
+22
+CELL_TYPES 9
+12
+12
+12
+12
+12
+12
+12
+12
+12
+POINT_DATA 32
+FIELD FieldData 1
+set-allnodesset-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-x0set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-x1set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-y0set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-y1set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-z0set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-z1set-allnodes_set-x0_set-x1_set-y0_set-y1_set-z0_set-z1_set-dispnodeset-dispnode 1 32 vtktypeint64
+7 6 6 6 5 5 5 5 6 6 6 6 5 5 5 5 6 6 6 6 5 5 5 5 6 6 6 6 5 5 5 5
+CELL_DATA 9
+FIELD FieldData 1
+set-allelements_set-matrix 1 9 vtktypeint64
+1 1 1 1 1 1 1 1 1

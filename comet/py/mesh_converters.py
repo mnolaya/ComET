@@ -107,7 +107,7 @@ class AbaqusConverter:
             set_name = m.group(3).strip()
             if 'generate' in chunk[0].lower():
                 label_range = [int(n) for n in chunk[1].split(',')]
-                label_range[1] += 1
+                label_range[0] -= 1
                 labels = np.arange(*label_range)
             else:
                 labels = []
@@ -137,22 +137,44 @@ class AbaqusConverter:
 
         self.material_definitions = material_definitions
 
-    def to_vtk(self, version: str = '0.1') -> None:
+    def _map_materials_to_element_id(self) -> dict[str, np.ndarray]:
+        # Get the element ids associated with the set associated with each defined material
+        material_element_ids = {}
+        for material, details in self.material_definitions.items():
+            for element in self.mesh_sets['element'][details['set_name']]:
+                material_element_ids.update({element: material})
+        return material_element_ids
+    
+    def to_vtk(self, output_path: pathlib.Path, version: str = '0.1') -> None:
+        # Get mesh details and node coords
         nnodes = self.nodes.shape[0]
         ndim = self.nodes.shape[1]
         nelems = np.max([len(c) for c in self.connectivity.values()])
         node_coords = [' '.join(coords.tolist()) for coords in self.nodes.astype(str)]
+
+        # Initialize data to be stored as DataArrays in .vtu
         assembly_connectivity = []
         offsets = []
         elem_types = []
+        material_ids = []
+
+        # Create DataArrays for element type (per VTK standards), element connectivity matrix, and offset array (per VTK standards).
         i = 1
         for elem_type, connectivity in self.connectivity.items():
-            for nodes in connectivity.astype(str):
-                assembly_connectivity.append(' '.join(nodes.tolist()))
-                offsets.append(str(nodes.shape[0]*i))
+            for elements in connectivity.astype(str):
+                assembly_connectivity.append(' '.join(elements.tolist()))
+                offsets.append(str(elements.shape[0]*i))
                 if elem_type in ['C3D8RT', 'C3D8R', 'C3D8', 'C3D8T']:
                     elem_types.append('12')
                 i += 1
+
+        # Create DataArrays for material ID.
+        material_element_ids = self._map_materials_to_element_id()
+        material_ids_ = {m: str(i + 1) for i, m in enumerate(self.material_definitions.keys())}
+        for i in range(nelems):
+            material = material_element_ids[i]
+            material_ids.append(material_ids_[material])
+
         file_lines = [
             rf'<VTKFile type="UnstructuredGrid" version="{version}" byte_order="LittleEndian">',
             r'<UnstructuredGrid>',
@@ -173,8 +195,15 @@ class AbaqusConverter:
         ] + elem_types + [
             rf'</DataArray>',
             rf'</Cells>',
+            rf'<CellData>',
+            rf'<DataArray Name="material_id" type="Int32" format="ascii">',
+        ] + material_ids + [
+            rf'</DataArray>',
+            rf'</CellData>',
             r'</Piece>',
             r'</UnstructuredGrid>',
             r'</VTKFile>',
         ]
-        return file_lines
+        with open(output_path, 'w+') as f:
+            f.write('\n'.join(file_lines))
+            print(f'sucessfully converted Abaqus .inp file to vtk: {output_path}')
