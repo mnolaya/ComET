@@ -5,12 +5,17 @@ module element_library
     use linear_algebra, only: invert, determinant
     use gauss_integration, only: IntegrationPoint_t, make_integration_points
     use element_utils, only: meshgrid
+    use boundary_conditions, only: SurfaceTraction_t
 
     implicit none
     private
 
     real(r64), parameter :: STRAIN_COMPONENT_MATRIX_2D(3, 4) = reshape([1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0], shape=[3, 4], order=[2, 1])
-    real(r64), parameter :: STRAIN_TRANSFORM_MATRIX_2D(3, 3) = reshape([1, 0, 0, 0, 1, 0, 0, 0, 2], shape=[3, 3], order=[2, 1])
+    ! real(r64), parameter :: STRAIN_TRANSFORM_MATRIX_2D(3, 3) = reshape([1, 0, 0, 0, 1, 0, 0, 0, 2], shape=[3, 3], order=[2, 1])
+
+    type, public :: Connectivity_t
+        integer, allocatable :: nodes(:)
+    end type Connectivity_t
 
     type :: ShapeFunctionPointer
         procedure(shape_func_iface), pointer, nopass :: f => null()
@@ -26,13 +31,14 @@ module element_library
         type(ShapeFunctionPointer), allocatable :: shape_func_deriv(:)
     end type Node_t
 
-    type, abstract :: FiniteElement_t
+    type, abstract, public :: FiniteElement_t
         ! Base class for a finite element
         integer :: number, ndim, ndof, nnodes
         character(CHAR_SIZE) :: material_name
         type(Node_t), allocatable :: nodes(:)
         type(IntegrationPoint_t), allocatable :: integration_pts(:)
-        real(r64), allocatable :: transform(:, :)
+        type(SurfaceTraction_t) surf_traction
+        real(r64), allocatable :: transform(:, :), D(:, :)
         contains
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
@@ -85,11 +91,11 @@ module element_library
             real(r64), allocatable :: B(:, :)            
         end function B_matrix_iface
 
-        function stiffness_iface(self, D) result(k)
+        function stiffness_iface(self) result(k)
             ! Deferred interface for computing the element stiffness matrix k.
             import r64, FiniteElement_t
             class(FiniteElement_t), intent(in) :: self
-            real(r64), intent(in) :: D(:, :)
+            ! real(r64), intent(in) :: D(:, :)
             real(r64), allocatable :: k(:, :)
         end function stiffness_iface
     end interface
@@ -99,9 +105,9 @@ module element_library
     end interface LinearElement_t
 
     contains
-        function construct_linear_element(global_coords, num_itg_pts) result(elem)
+        function construct_linear_element(global_coords, num_itg_pts, D) result(elem)
             ! Construct a linear finite element
-            real(r64), intent(in) :: global_coords(:, :)
+            real(r64), intent(in) :: global_coords(:, :), D(:, :)
             integer, intent(in), optional :: num_itg_pts
             type(LinearElement_t) :: elem
 
@@ -153,7 +159,49 @@ module element_library
             num_itg_pts_ = 2
             if (present(num_itg_pts)) num_itg_pts_ = num_itg_pts
             elem%integration_pts = make_integration_points(num_itg_pts_)
+
+            ! Set the element stiffness
+            elem%D = D
         end function construct_linear_element
+
+        function compute_force_vector_2D(self) result(f)
+            ! Args
+            class(FiniteElement_t), intent(in) :: self
+            real(r64), allocatable :: f(:, :)
+
+            ! Loc vars
+            integer :: ii, jj, kk   ! Looping vars
+            real(r64) :: natural_coords(2), J_det
+            real(r64), allocatable :: N(:, :), dN(:, :), J(:, :), fsurf(:, :)
+
+            ! Allocate...
+            allocate(f(self%nnodes*self%ndof, 1))
+            allocate(fsurf(self%nnodes*self%ndof, 1))
+            f = 0
+        
+            do ii = 1, size(self%integration_pts)
+                ! Get the natural coordinates of the integration point along the surface
+                natural_coords = [self%integration_pts(ii)%loc, self%integration_pts(ii)%loc]
+                natural_coords(self%surf_traction%i_const) = self%surf_traction%val_const
+
+                ! Compute the force vector at the current integration point resolved from the surface traction
+                fsurf = 0
+                do jj = 1, size(self%surf_traction%poly_constants(ii, :))
+                    fsurf(ii, 1) = fsurf(ii, 1) + sum([(self%surf_traction%poly_constants(ii, jj)%c(kk)*natural_coords(jj)**kk, kk = 1, size(self%surf_traction%poly_constants(ii, jj)%c))])
+                end do
+
+                ! Compute element matrices
+                N = self%compute_N(natural_coords)
+                dN = self%compute_dN(natural_coords)
+                J = self%compute_J(dN)
+
+                ! Compute the Jacobi-determinant along the surface
+                J_det = self%surf_traction%compute_J_det(J)
+
+                ! Compute the force vector
+                f = f + self%integration_pts(ii)%weight*J_det*matmul(transpose(N), fsurf)
+            end do
+        end function compute_force_vector_2D
 
         function compute_N_linear(self, natural_coords) result(N)
             ! Compute the shape function matrix N for a 2D element
@@ -257,10 +305,10 @@ module element_library
             B = matmul(STRAIN_COMPONENT_MATRIX_2D, matmul(invert(J), dN))
         end function compute_B_linear
 
-        function compute_k_linear(self, D) result(k)
+        function compute_k_linear(self) result(k)
             ! Compute the element stiffness matrix k for a 2D element
             class(LinearElement_t), intent(in) :: self
-            real(r64), intent(in) :: D(:, :)
+            ! real(r64), intent(in) :: D(:, :)
             real(r64), allocatable :: k(:, :)
 
             ! Loc vars
@@ -288,7 +336,7 @@ module element_library
                         J_det = determinant(J(1:2, 1:2))
     
                         ! Update k
-                        k = k + self%thickness*w(i)*w(m)*matmul(transpose(B), matmul(D, B))*J_det
+                        k = k + self%thickness*w(i)*w(m)*matmul(transpose(B), matmul(self%D, B))*J_det
                     end do
                 end do
             end select
