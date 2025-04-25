@@ -5,35 +5,45 @@ module boundary_conditions
 
     implicit none
 
+    private
+
+    type, abstract, public :: BoundaryCondition_t
+    end type BoundaryCondition_t
+
     type, public :: PolynomialConstants_t
         real(r64), allocatable :: c(:)
     end type PolynomialConstants_t
 
-    type, public :: SurfaceTraction_t
+    type, extends(BoundaryCondition_t), public :: SurfaceTractionBC_t
         integer :: order, i_const, val_const
         integer :: J1_indices(2), J2_indices(2)
         character(2) :: face
             ! Face surface traction is on with respect to isoparametric element
             ! Identify with +/- and x/y/z -> e.g., +x
-        real(r64) :: thickness
+        real(r64) :: thickness = 1
         type(PolynomialConstants_t), allocatable :: poly_constants(:, :)
             ! Polynomial constants defining the surface load, ordered from lowest to highest order
             ! p0*x^0 + p1*x^1 + ... pn*x^n
         contains
             procedure, pass :: compute_J_det
-    end type SurfaceTraction_t
+            procedure, pass :: compute_load
+    end type SurfaceTractionBC_t
 
-    interface SurfaceTraction_t
+    type, extends(BoundaryCondition_t), public :: DisplacementBC_t
+        real(r64), allocatable :: ux, uy, uz
+    end type DisplacementBC_t
+
+    interface SurfaceTractionBC_t
         module procedure init_surface_traction
-    end interface SurfaceTraction_t
+    end interface SurfaceTractionBC_t
 
     contains
         function init_surface_traction(order, face, poly_constants) result(surf_traction)
             ! Args
             character(2), intent(in) :: face
             integer, intent(in) :: order
-            type(PolynomialConstants_t), allocatable :: poly_constants(:, :)
-            type(SurfaceTraction_t) :: surf_traction
+            type(PolynomialConstants_t), intent(in) :: poly_constants(:, :)
+            type(SurfaceTractionBC_t) :: surf_traction
 
             ! Surface traction polynomial constants should be arranged where each row corresponds to a dof, 
             ! and each column corresponds to the polynomial constants associated with components of the natural coordinate vector
@@ -71,7 +81,7 @@ module boundary_conditions
         !> Compute the Jacboi-determinant for the applied surface traction
         function compute_J_det(self, J) result(J_det)
             ! Args
-            class(SurfaceTraction_t), intent(in) :: self
+            class(SurfaceTractionBC_t), intent(in) :: self
             real(r64), intent(in) :: J(:, :)
             real(r64) :: J_det
 
@@ -84,17 +94,21 @@ module boundary_conditions
             J_det = (J1**2 + J2**2)**0.5
         end function compute_J_det
 
-        ! !> Get the natural coordinates of the integration points corresponding to the surface traction
-        ! function get_natural_coords(self, itg_pt, ndim) result(natural_coords)
-        !     ! Args
-        !     class(SurfaceTraction_t), intent(in) :: self
-        !     type(IntegrationPoint_t), intent(in) :: itg_pt
-        !     integer, intent(in) :: ndim
-        !     real(r64) :: natural_coords(ndim)
+        !> Compute the load due to the surface traction at an integration point
+        function compute_load(self, natural_coords) result(load)
+            ! Args
+            class(SurfaceTractionBC_t), intent(in) :: self
+            real(r64), intent(in) :: natural_coords(:)
+            real(r64) :: load(size(natural_coords))
 
-        !     ! Get the natural coordinates of the integration point corresponding to the surface traction
-        !     natural_coords = itg_pt%loc
-        !     natural_coords(self%surf_traction%i_const) = self%surf_traction%val_const
+            ! Loc vars
+            integer :: i, j, k
 
-        ! end function get_natural_coords
+            load = 0
+            do i = 1, size(self%poly_constants, dim=1)
+                do j = 1, size(self%poly_constants, dim=2)
+                    load(i) = load(i) + sum([(self%poly_constants(i, j)%c(k)*natural_coords(j)*(k - 1), k = 1, size(self%poly_constants(i, j)%c))])
+                end do
+            end do
+        end function compute_load
 end module boundary_conditions
