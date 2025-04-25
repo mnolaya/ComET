@@ -5,17 +5,13 @@ module element_library
     use linear_algebra, only: invert, determinant
     use gauss_integration, only: IntegrationPoint_t, make_integration_points
     use element_utils, only: meshgrid
-    use boundary_conditions, only: SurfaceTraction_t
+    use boundary_conditions, only: SurfaceTractionBC_t, DisplacementBC_t
 
     implicit none
     private
 
     real(r64), parameter :: STRAIN_COMPONENT_MATRIX_2D(3, 4) = reshape([1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0], shape=[3, 4], order=[2, 1])
     ! real(r64), parameter :: STRAIN_TRANSFORM_MATRIX_2D(3, 3) = reshape([1, 0, 0, 0, 1, 0, 0, 0, 2], shape=[3, 3], order=[2, 1])
-
-    type, public :: Connectivity_t
-        integer, allocatable :: nodes(:)
-    end type Connectivity_t
 
     type :: ShapeFunctionPointer
         procedure(shape_func_iface), pointer, nopass :: f => null()
@@ -29,6 +25,7 @@ module element_library
         real(r64), allocatable :: global_coords(:)
         type(ShapeFunctionPointer) :: shape_func
         type(ShapeFunctionPointer), allocatable :: shape_func_deriv(:)
+        type(DisplacementBC_t), allocatable :: disp_bc
     end type Node_t
 
     type, abstract, public :: FiniteElement_t
@@ -37,16 +34,18 @@ module element_library
         character(CHAR_SIZE) :: material_name
         type(Node_t), allocatable :: nodes(:)
         type(IntegrationPoint_t), allocatable :: integration_pts(:)
-        type(SurfaceTraction_t) surf_traction
+        type(SurfaceTractionBC_t), allocatable :: surf_traction
         real(r64), allocatable :: transform(:, :), D(:, :)
         contains
             procedure, pass :: inspect => inspect_element
             procedure, pass :: get_nodal_coordinate_vec
+            procedure, pass :: compute_force_vector
             procedure(shape_func_matrix_iface), deferred, pass :: compute_N
             procedure(shape_func_matrix_iface), deferred, pass :: compute_dN
             procedure(stiffness_iface), deferred, pass :: compute_k
             procedure(jacobian_iface), deferred, pass :: compute_J
             procedure(B_matrix_iface), deferred, nopass :: compute_B
+            ! procedure(force_vector_iface), deferred, pass :: compute_force_vector
     end type FiniteElement_t
 
     type, extends(FiniteElement_t), public :: LinearElement_t
@@ -58,6 +57,7 @@ module element_library
             procedure, pass :: compute_J => compute_J_linear
             procedure, pass :: compute_k => compute_k_linear
             procedure, nopass :: compute_B => compute_B_linear
+            ! procedure, pass :: compute_force_vector => compute_force_vector_2D
     end type LinearElement_t
 
     abstract interface
@@ -98,6 +98,13 @@ module element_library
             ! real(r64), intent(in) :: D(:, :)
             real(r64), allocatable :: k(:, :)
         end function stiffness_iface
+
+        function force_vector_iface(self) result(f)
+            ! Deferred interface for computing the element force vector f.
+            import r64, FiniteElement_t
+            class(FiniteElement_t), intent(in) :: self
+            real(r64), allocatable :: f(:, :)
+        end function force_vector_iface
     end interface
 
     interface LinearElement_t
@@ -137,19 +144,19 @@ module element_library
             ! Update the shape function and shape function derivative pointers
             select case (elem%ndim)
             case (2)
-                elem%nodes(1)%natural_coords = [-1, -1]
+                elem%nodes(1)%natural_coords = [-1.0_r64, -1.0_r64]
                 elem%nodes(1)%shape_func%f => shape_N1_linear
                 elem%nodes(1)%shape_func_deriv(1)%f => shape_deriv_N11_linear
                 elem%nodes(1)%shape_func_deriv(2)%f => shape_deriv_N12_linear
-                elem%nodes(2)%natural_coords = [1, -1]
+                elem%nodes(2)%natural_coords = [1.0_r64, -1.0_r64]
                 elem%nodes(2)%shape_func%f => shape_N2_linear
                 elem%nodes(2)%shape_func_deriv(1)%f => shape_deriv_N21_linear
                 elem%nodes(2)%shape_func_deriv(2)%f => shape_deriv_N22_linear
-                elem%nodes(3)%natural_coords = [1, 1]
+                elem%nodes(3)%natural_coords = [1.0_r64, 1.0_r64]
                 elem%nodes(3)%shape_func%f => shape_N3_linear
                 elem%nodes(3)%shape_func_deriv(1)%f => shape_deriv_N31_linear
                 elem%nodes(3)%shape_func_deriv(2)%f => shape_deriv_N32_linear
-                elem%nodes(4)%natural_coords = [-1, 1]
+                elem%nodes(4)%natural_coords = [-1.0_r64, 1.0_r64]
                 elem%nodes(4)%shape_func%f => shape_N4_linear
                 elem%nodes(4)%shape_func_deriv(1)%f => shape_deriv_N41_linear
                 elem%nodes(4)%shape_func_deriv(2)%f => shape_deriv_N42_linear
@@ -164,31 +171,30 @@ module element_library
             elem%D = D
         end function construct_linear_element
 
-        function compute_force_vector_2D(self) result(f)
+        function compute_force_vector(self) result(f)
             ! Args
             class(FiniteElement_t), intent(in) :: self
             real(r64), allocatable :: f(:, :)
 
             ! Loc vars
-            integer :: ii, jj, kk   ! Looping vars
-            real(r64) :: natural_coords(2), J_det
-            real(r64), allocatable :: N(:, :), dN(:, :), J(:, :), fsurf(:, :)
+            integer :: i   ! Looping vars
+            real(r64) :: J_det, natural_coords(self%ndim), fsurf(self%ndim, 1)
+            real(r64), allocatable :: N(:, :), dN(:, :), J(:, :)
 
             ! Allocate...
             allocate(f(self%nnodes*self%ndof, 1))
-            allocate(fsurf(self%nnodes*self%ndof, 1))
             f = 0
-        
-            do ii = 1, size(self%integration_pts)
+            
+            ! Update the force vector for contributions at each integration point
+            do i = 1, size(self%integration_pts)
+                if (.not.allocated(self%surf_traction)) cycle
+
                 ! Get the natural coordinates of the integration point along the surface
-                natural_coords = [self%integration_pts(ii)%loc, self%integration_pts(ii)%loc]
+                natural_coords = [self%integration_pts(i)%loc, self%integration_pts(i)%loc]
                 natural_coords(self%surf_traction%i_const) = self%surf_traction%val_const
 
                 ! Compute the force vector at the current integration point resolved from the surface traction
-                fsurf = 0
-                do jj = 1, size(self%surf_traction%poly_constants(ii, :))
-                    fsurf(ii, 1) = fsurf(ii, 1) + sum([(self%surf_traction%poly_constants(ii, jj)%c(kk)*natural_coords(jj)**kk, kk = 1, size(self%surf_traction%poly_constants(ii, jj)%c))])
-                end do
+                fsurf(:, 1) = self%surf_traction%compute_load(natural_coords)
 
                 ! Compute element matrices
                 N = self%compute_N(natural_coords)
@@ -198,10 +204,10 @@ module element_library
                 ! Compute the Jacobi-determinant along the surface
                 J_det = self%surf_traction%compute_J_det(J)
 
-                ! Compute the force vector
-                f = f + self%integration_pts(ii)%weight*J_det*matmul(transpose(N), fsurf)
+                ! Update the force vector
+                f = f + self%integration_pts(i)%weight*J_det*matmul(transpose(N), fsurf)
             end do
-        end function compute_force_vector_2D
+        end function compute_force_vector
 
         function compute_N_linear(self, natural_coords) result(N)
             ! Compute the shape function matrix N for a 2D element
@@ -214,6 +220,7 @@ module element_library
 
             ! Assign to correct position in shape function matrix
             allocate(N(self%ndim, self%nnodes*self%ndof))
+            N = 0
             select case (self%ndim)
             case (2)
                 ! Compute the components of N
@@ -241,6 +248,7 @@ module element_library
 
             ! Assign to correct position in shape function matrix
             allocate(dN(self%ndim*self%ndof, self%nnodes*self%ndof))
+            dN = 0
             select case (self%ndim)
             case (2)
                 ! Compute the components of N
@@ -318,6 +326,7 @@ module element_library
 
             ! Size of the element stiffness should be (nnodes*ndof, nnodes*ndof)
             allocate(k(self%nnodes*self%ndof, self%nnodes*self%ndof))
+            k = 0
             
             select case (self%ndim)
             case (2)
@@ -401,7 +410,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(1) - 1)*(natural_coords(2) - 1)
+                N = 0.25_r64*(natural_coords(1) - 1.0_r64)*(natural_coords(2) - 1.0_r64)
             end select
         end function shape_N1_linear
 
@@ -412,7 +421,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(1) + 1)*(natural_coords(2) - 1)
+                N = -0.25_r64*(natural_coords(1) + 1.0_r64)*(natural_coords(2) - 1.0_r64)
             end select
         end function shape_N2_linear
 
@@ -423,7 +432,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(1) + 1)*(natural_coords(2) + 1)
+                N = 0.25_r64*(natural_coords(1) + 1.0_r64)*(natural_coords(2) + 1.0_r64)
             end select
         end function shape_N3_linear
 
@@ -434,7 +443,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(1) - 1)*(natural_coords(2) + 1)
+                N = -0.25_r64*(natural_coords(1) - 1.0_r64)*(natural_coords(2) + 1.0_r64)
             end select
         end function shape_N4_linear
 
@@ -445,7 +454,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(2) - 1)
+                N = 0.25_r64*(natural_coords(2) - 1.0_r64)
             end select
         end function shape_deriv_N11_linear
 
@@ -456,7 +465,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(1) - 1)
+                N = 0.25_r64*(natural_coords(1) - 1.0_r64)
             end select
         end function shape_deriv_N12_linear
 
@@ -467,7 +476,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(2) - 1)
+                N = -0.25_r64*(natural_coords(2) - 1.0_r64)
             end select
         end function shape_deriv_N21_linear
 
@@ -478,7 +487,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(1) + 1)
+                N = -0.25_r64*(natural_coords(1) + 1.0_r64)
             end select
         end function shape_deriv_N22_linear
 
@@ -489,7 +498,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(2) + 1)
+                N = 0.25_r64*(natural_coords(2) + 1.0_r64)
             end select
         end function shape_deriv_N31_linear
 
@@ -500,7 +509,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = 0.25*(natural_coords(1) + 1)
+                N = 0.25_r64*(natural_coords(1) + 1.0_r64)
             end select
         end function shape_deriv_N32_linear
 
@@ -511,7 +520,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(2) + 1)
+                N = -0.25_r64*(natural_coords(2) + 1.0_r64)
             end select
         end function shape_deriv_N41_linear
 
@@ -522,7 +531,7 @@ module element_library
             
             select case (size(natural_coords))
             case (2)
-                N = -0.25*(natural_coords(1) - 1)
+                N = -0.25_r64*(natural_coords(1) - 1.0_r64)
             end select
         end function shape_deriv_N42_linear
 end module element_library
